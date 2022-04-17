@@ -1,24 +1,16 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace StpTool
 {
-    public enum EndiannessSignature
-    {
-        Little = 0x4C505453,
-        Big = 0x42505453,
-    }
-    public enum Version
-    {
-        GZ = 0,
-        TPP = 1,
-    }
     public class StreamedPackage
     {
+        public enum StpEndiannessSignature
+        {
+            Little = 0x4C505453,
+            Big = 0x42505453,
+        }
         public List<uint> FileNames = new List<uint>();
         public List<byte[]> WemFiles = new List<byte[]>();
         public List<byte[]> Ls2Files = new List<byte[]>();
@@ -28,10 +20,10 @@ namespace StpTool
             Console.WriteLine($"signature: {signature}");
             switch (signature)
             {
-                case (uint)EndiannessSignature.Little:
+                case (uint)StpEndiannessSignature.Little:
                     Console.WriteLine("Little Endian");
                     break;
-                case (uint)EndiannessSignature.Big:
+                case (uint)StpEndiannessSignature.Big:
                     throw new NotImplementedException();
             }
             ushort count = reader.ReadUInt16();
@@ -142,7 +134,7 @@ namespace StpTool
                     throw new ArgumentOutOfRangeException();
             }
 
-            writer.Write((uint)EndiannessSignature.Little);
+            writer.Write((uint)StpEndiannessSignature.Little);
             writer.Write((ushort)FileNames.Count);
             writer.Write((byte)version);
             writer.Write((byte)0);

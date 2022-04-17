@@ -7,6 +7,11 @@ using System.Windows.Forms;
 
 namespace StpTool
 {
+    public enum Version
+    {
+        GZ = 0,
+        TPP = 1,
+    }
     internal static class Program
     {
         // Based on BobDoleOwndU's AutoPftxsTool
@@ -16,41 +21,89 @@ namespace StpTool
 
             Version version = Version.TPP;
 
-
-            foreach (string stpPath in args)
+            foreach (string arg in args)
             {
-                if (stpPath.ToLower() == "-gz")
+                if (arg.ToLower() == "-gz")
                 {
                     version = Version.GZ;
                     continue;
                 }
-                if (File.GetAttributes(stpPath).HasFlag(FileAttributes.Directory))
+                if (File.GetAttributes(arg).HasFlag(FileAttributes.Directory))
                 {
+                    var isStp = true;
+                    string[] files = Directory.GetFiles(arg, "*", SearchOption.TopDirectoryOnly);
                     //Write
-                    Console.WriteLine($"Write {stpPath}");
-                    string extension = ".stp";
-                    string fileName = stpPath.Substring(0, stpPath.Length - extension.Length) + extension;
+                    Console.WriteLine($"Write {arg}");
 
-                    StreamedPackage stp = ImportFiles(Directory.GetFiles(stpPath, "*", SearchOption.TopDirectoryOnly));
-                    WritePackage(stp, fileName, version);
+                    string extension = ".stp";
+                    if (arg.EndsWith("sab"))
+                        isStp = false;
+                    else if(arg.EndsWith("stp"))
+                        isStp = true;
+
+                    if (!isStp)
+                        extension = ".sab";
+                    string fileName = arg.Substring(0, arg.Length - extension.Length) + extension;
+
+                    if (!isStp)
+                    {
+                        StreamedAnimation sab = ImportSabFiles(files);
+                        WriteSabPackage(sab, fileName, version);
+                    }
+                    else
+                    {
+                        StreamedPackage stp = ImportStpFiles(files);
+                        WriteStpPackage(stp, fileName, version);
+                    }
+
                 }
-                else if (File.Exists(stpPath))
+                else if (File.Exists(arg))
                 {
                     //Read
-                    Console.WriteLine($"Read {stpPath}");
-                    string fileNameWithoutExtension = Path.GetFileNameWithoutExtension(stpPath);
-                    string extension = Path.GetExtension(stpPath).Substring(1);
-                    string directoryName = Path.GetDirectoryName(stpPath);
-                    string outputDirectory = directoryName + "\\" + fileNameWithoutExtension + "_" + extension;
+                    Console.WriteLine($"Read {arg}");
+                    string extension = Path.GetExtension(arg).Substring(1);
 
-                    Directory.CreateDirectory(outputDirectory);
+                    if (extension == "stp"|| extension == "sab"|| extension == "bnk")
+                    {
+                        string fileNameWithoutExtension = Path.GetFileNameWithoutExtension(arg);
+                        string directoryName = Path.GetDirectoryName(arg);
+                        string outputDirectory = directoryName + "\\" + fileNameWithoutExtension + "_" + extension;
 
-                    StreamedPackage stp = ReadPackage(stpPath);
-                    ExportFiles(stp, outputDirectory);
+                        Directory.CreateDirectory(outputDirectory);
+
+                        if (extension == "stp")
+                        {
+                            StreamedPackage stp = ReadStpPackage(arg);
+                            ExportStpFiles(stp, outputDirectory);
+                        }
+                        else if (extension == "sab")
+                        {
+                            StreamedAnimation sab = ReadSabPackage(arg);
+                            ExportSabFiles(sab, outputDirectory);
+                        }
+                        else if (extension == "bnk")
+                        {
+                            EmbeddedDataIndex bnk = ReadSoundBank(arg);
+                            DumpBnk(bnk, outputDirectory);
+                        }
+                    }
                 }
             }
         }
-        public static StreamedPackage ReadPackage(string path)
+        public static StreamedAnimation ReadSabPackage(string path)
+        {
+            StreamedAnimation sab = new StreamedAnimation();
+            using (BinaryReader reader = new BinaryReader(new FileStream(path, FileMode.Open)))
+            {
+                sab.ReadPackage(reader);
+            }
+            return sab;
+        }
+        public static void ExportSabFiles(StreamedAnimation sab, string outputPath)
+        {
+            sab.ExportFiles(outputPath);
+        }
+        public static StreamedPackage ReadStpPackage(string path)
         {
             StreamedPackage stp = new StreamedPackage();
             using (BinaryReader reader = new BinaryReader(new FileStream(path, FileMode.Open)))
@@ -59,11 +112,11 @@ namespace StpTool
             }
             return stp;
         }
-        public static void ExportFiles(StreamedPackage stp, string outputPath)
+        public static void ExportStpFiles(StreamedPackage stp, string outputPath)
         {
             stp.ExportFiles(outputPath);
         }
-        public static StreamedPackage ImportFiles(string[] files)
+        public static StreamedPackage ImportStpFiles(string[] files)
         {
             StreamedPackage stp = new StreamedPackage();
 
@@ -71,12 +124,40 @@ namespace StpTool
 
             return stp;
         }
-        public static void WritePackage(StreamedPackage stp, string outputPath, Version version)
+        public static void WriteStpPackage(StreamedPackage stp, string outputPath, Version version)
         {
             using (BinaryWriter writer = new BinaryWriter(new FileStream(outputPath, FileMode.Create)))
             {
                 stp.WritePackage(writer, version);
             }
+        }
+        public static StreamedAnimation ImportSabFiles(string[] files)
+        {
+            StreamedAnimation sab = new StreamedAnimation();
+
+            sab.ImportFiles(files);
+
+            return sab;
+        }
+        public static void WriteSabPackage(StreamedAnimation sab, string outputPath, Version version)
+        {
+            using (BinaryWriter writer = new BinaryWriter(new FileStream(outputPath, FileMode.Create)))
+            {
+                sab.WritePackage(writer, version);
+            }
+        }
+        public static EmbeddedDataIndex ReadSoundBank(string path)
+        {
+            EmbeddedDataIndex bnk = new EmbeddedDataIndex();
+            using (BinaryReader reader = new BinaryReader(new FileStream(path, FileMode.Open)))
+            {
+                bnk.ReadSoundBank(reader);
+            }
+            return bnk;
+        }
+        public static void DumpBnk(EmbeddedDataIndex bnk, string outputPath)
+        {
+            bnk.DumpFiles(outputPath);
         }
     }
 }
