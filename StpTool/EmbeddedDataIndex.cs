@@ -20,6 +20,12 @@ namespace StpTool
             int bankHeaderSize = reader.ReadInt32();
             reader.BaseStream.Position += bankHeaderSize;
 
+            if (reader.BaseStream.Position >= reader.BaseStream.Length)
+            {
+                Console.WriteLine($"Header-only file!!!");
+                return;
+            };
+
             //find didx:
             uint dataIndexSignature = reader.ReadUInt32();
 
