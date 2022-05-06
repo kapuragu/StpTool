@@ -104,16 +104,21 @@ namespace StpTool
                 }*/
             }
         }
-        public void ExportFiles(string outputPath)
+        public void ExportFiles(string outputPath, Dictionary<ulong, string> dictionary)
         {
             foreach (ulong fileName in FileNames)
             {
                 int index = FileNames.IndexOf(fileName);
 
+                string strFileName = fileName.ToString();
+
+                if (dictionary.ContainsKey(fileName))
+                    dictionary.TryGetValue(fileName, out strFileName);
+
                 //attempt to read ls and st as one entry, lsst:
                 if (LsStFiles.Count > 0)
                     if (LsStFiles[index].Length > 0)
-                        File.WriteAllBytes(outputPath + "\\" + fileName.ToString() + ".lsst", LsStFiles[index]);
+                        File.WriteAllBytes(outputPath + "\\" + strFileName + ".lsst", LsStFiles[index]);
 
                 //attempt to read ls and st separately as subentries:
                 /* if (LsFiles.Count > 0)
@@ -132,7 +137,15 @@ namespace StpTool
                 //attempt to read ls and st as one entry, lsst:
                 if (Path.GetExtension(files[i]) == ".lsst")
                 {
-                    FileNames.Add(Convert.ToUInt64(Path.GetFileNameWithoutExtension(files[i])));
+                    string fileName = Path.GetFileNameWithoutExtension(files[i]);
+                    ulong fileNameHash;
+
+                    if (UInt64.TryParse(fileName, out fileNameHash))
+                        fileNameHash = Convert.ToUInt64(fileName);
+                    else
+                        fileNameHash = Extensions.StrCode64(fileName);
+
+                    FileNames.Add(fileNameHash);
                     if (Path.GetExtension(files[i]) == ".lsst")
                         LsStFiles.Add(File.ReadAllBytes(files[i]));
                 }

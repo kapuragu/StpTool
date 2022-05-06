@@ -1,5 +1,8 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using System.Reflection;
 
 namespace StpTool
 {
@@ -10,12 +13,14 @@ namespace StpTool
     }
     internal static class Program
     {
+        private const string EmbeddedFilenameStringsFileName = "embedded_filename_strings.txt";
         // Based on BobDoleOwndU's AutoPftxsTool
         // https://github.com/BobDoleOwndU/AutoPftxsTool/
         private static void Main(string[] args)
         {
 
             Version version = Version.TPP;
+
 
             foreach (string arg in args)
             {
@@ -74,8 +79,10 @@ namespace StpTool
                         }
                         else if (extension == "sab")
                         {
+                            string direct = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+                            string dictDir = direct + "/" + EmbeddedFilenameStringsFileName;
                             StreamedAnimation sab = ReadSabPackage(arg);
-                            ExportSabFiles(sab, outputDirectory);
+                            ExportSabFiles(sab, outputDirectory, CreateDictionary(dictDir));
                         }
                         else if (extension == "bnk")
                         {
@@ -95,9 +102,9 @@ namespace StpTool
             }
             return sab;
         }
-        public static void ExportSabFiles(StreamedAnimation sab, string outputPath)
+        public static void ExportSabFiles(StreamedAnimation sab, string outputPath, Dictionary<ulong, string> dictionary)
         {
-            sab.ExportFiles(outputPath);
+            sab.ExportFiles(outputPath, dictionary);
         }
         public static StreamedPackage ReadStpPackage(string path)
         {
@@ -154,6 +161,22 @@ namespace StpTool
         public static void DumpBnk(EmbeddedDataIndex bnk, string outputPath)
         {
             bnk.DumpFiles(outputPath);
+        }
+
+        public static Dictionary<ulong, string> CreateDictionary(string dictDir)
+        {
+            Dictionary<ulong, string> embeddedFilenameMarkerDictionary = new Dictionary<ulong, string>();
+
+            if (File.Exists(dictDir))
+            {
+                string[] embeddedFilenameMarkers = File.ReadAllLines(dictDir).Distinct().ToArray();
+                foreach (string marker in embeddedFilenameMarkers)
+                {
+                    embeddedFilenameMarkerDictionary.Add(Extensions.StrCode64(marker), marker);
+                }
+            };
+
+            return embeddedFilenameMarkerDictionary;
         }
     }
 }
