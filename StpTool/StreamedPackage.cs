@@ -182,8 +182,10 @@ namespace StpTool
                         ls2StartOffsets.Add((int)writer.BaseStream.Position);
                         if (ls2Length > 0)
                             writer.Write(ls2File);
+                        writer.AlignStream(16);
                         wemStartOffsets.Add((int)writer.BaseStream.Position);
                         writer.Write(wemFile);
+                        writer.AlignStream(16);
                     }
                     break;
             }

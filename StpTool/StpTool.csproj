@@ -54,6 +54,9 @@
   <ItemGroup>
     <Compile Include="EmbeddedDataIndex.cs" />
     <Compile Include="Extensions.cs" />
+    <Compile Include="LsTrack.cs" />
+    <Compile Include="LsTrackKey.cs" />
+    <Compile Include="StreamAnimationData.cs" />
     <Compile Include="StreamedAnimation.cs" />
     <Compile Include="StreamedPackage.cs" />
     <Compile Include="Program.cs" />

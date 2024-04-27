@@ -18,15 +18,19 @@ namespace StpTool
         // https://github.com/BobDoleOwndU/AutoPftxsTool/
         private static void Main(string[] args)
         {
-
             Version version = Version.TPP;
-
+            Version outversion = Version.TPP;
 
             foreach (string arg in args)
             {
                 if (arg.ToLower() == "-gz")
                 {
                     version = Version.GZ;
+                    continue;
+                }
+                if (arg.ToLower() == "-outgz")
+                {
+                    outversion = Version.GZ;
                     continue;
                 }
                 if (File.GetAttributes(arg).HasFlag(FileAttributes.Directory))
@@ -48,13 +52,13 @@ namespace StpTool
 
                     if (!isStp)
                     {
-                        StreamedAnimation sab = ImportSabFiles(files);
-                        WriteSabPackage(sab, fileName, version);
+                        StreamedAnimation sab = ImportSabFiles(files, version);
+                        WriteSabPackage(sab, fileName, outversion);
                     }
                     else
                     {
                         StreamedPackage stp = ImportStpFiles(files);
-                        WriteStpPackage(stp, fileName, version);
+                        WriteStpPackage(stp, fileName, outversion);
                     }
 
                 }
@@ -68,6 +72,8 @@ namespace StpTool
                     {
                         string fileNameWithoutExtension = Path.GetFileNameWithoutExtension(arg);
                         string directoryName = Path.GetDirectoryName(arg);
+                        if (directoryName == string.Empty)
+                            directoryName = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
                         string outputDirectory = directoryName + "\\" + fileNameWithoutExtension + "_" + extension;
 
                         Directory.CreateDirectory(outputDirectory);
@@ -80,9 +86,9 @@ namespace StpTool
                         else if (extension == "sab")
                         {
                             string direct = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-                            string dictDir = direct + "/" + EmbeddedFilenameStringsFileName;
-                            StreamedAnimation sab = ReadSabPackage(arg);
-                            ExportSabFiles(sab, outputDirectory, CreateDictionary(dictDir));
+                            string dictDir = direct + "\\" + EmbeddedFilenameStringsFileName;
+                            StreamedAnimation sab = ReadSabPackage(arg, version);
+                            ExportSabFiles(sab, outputDirectory, CreateDictionary(dictDir), outversion);
                         }
                         else if (extension == "bnk")
                         {
@@ -93,18 +99,18 @@ namespace StpTool
                 }
             }
         }
-        public static StreamedAnimation ReadSabPackage(string path)
+        public static StreamedAnimation ReadSabPackage(string path, Version version)
         {
             StreamedAnimation sab = new StreamedAnimation();
             using (BinaryReader reader = new BinaryReader(new FileStream(path, FileMode.Open)))
             {
-                sab.ReadPackage(reader);
+                sab.ReadPackage(reader, version);
             }
             return sab;
         }
-        public static void ExportSabFiles(StreamedAnimation sab, string outputPath, Dictionary<ulong, string> dictionary)
+        public static void ExportSabFiles(StreamedAnimation sab, string outputPath, Dictionary<ulong, string> dictionary, Version version)
         {
-            sab.ExportFiles(outputPath, dictionary);
+            sab.ExportFiles(outputPath, dictionary, version);
         }
         public static StreamedPackage ReadStpPackage(string path)
         {
@@ -134,11 +140,11 @@ namespace StpTool
                 stp.WritePackage(writer, version);
             }
         }
-        public static StreamedAnimation ImportSabFiles(string[] files)
+        public static StreamedAnimation ImportSabFiles(string[] files, Version version)
         {
             StreamedAnimation sab = new StreamedAnimation();
 
-            sab.ImportFiles(files);
+            sab.ImportFiles(files, version);
 
             return sab;
         }

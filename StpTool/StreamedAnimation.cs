@@ -11,15 +11,13 @@ namespace StpTool
             Little = 0x334C4153,
             Big = 0x33424153,
         }
-        public List<ulong> FileNames = new List<ulong>();
+        public List<StreamedAnimationData> Files = new List<StreamedAnimationData>();
 
         //attempt to read ls and st as one entry, lsst:
-        public List<byte[]> LsStFiles = new List<byte[]>();
+        /*public List<byte[]> LsStFiles = new List<byte[]>();*/
 
         //attempt to read ls and st separately as subentries:
-        /*public List<byte[]> LsFiles = new List<byte[]>();
-        public List<byte[]> StFiles = new List<byte[]>();*/
-        public void ReadPackage(BinaryReader reader)
+        public void ReadPackage(BinaryReader reader, Version version)
         {
             uint signature = reader.ReadUInt32();
             Console.WriteLine($"signature: {signature}");
@@ -31,16 +29,16 @@ namespace StpTool
                 case (uint)SabEndiannessSignature.Big:
                     throw new NotImplementedException();
             }
-            uint pairsCount = reader.ReadUInt32();
+            int pairsCount = reader.ReadInt32();
             Console.WriteLine($"Count: {pairsCount}");
             List<int> pairOffsets = new List<int>();
             List<int> entrySizes = new List<int>();
             for (int i = 0; i < pairsCount; i++)
             {
-                FileNames.Add(reader.ReadUInt64());
+                Files.Add(new StreamedAnimationData() { FileName = reader.ReadUInt64() });
                 pairOffsets.Add(reader.ReadInt32());
                 reader.ReadZeroes(4);
-                Console.WriteLine($"Pair #{i}: {FileNames[i]} is at {pairOffsets[i]}");
+                //Console.WriteLine($"Pair #{i}: {FileNames[i]} is at {pairOffsets[i]}");
             }
             for (int i = 0; i < pairsCount; i++)
             {
@@ -48,7 +46,7 @@ namespace StpTool
                     entrySizes.Add(pairOffsets[i + 1] - pairOffsets[i]);
                 else
                     entrySizes.Add((int)(reader.BaseStream.Length - pairOffsets[i]));
-                Console.WriteLine($"Pair #{i} is size of {entrySizes[i]}");
+                //Console.WriteLine($"Pair #{i} is size of {entrySizes[i]}");
             }
             for (int i = 0; i < pairsCount; i++)
             {
@@ -56,91 +54,91 @@ namespace StpTool
 
                 //attempt to read ls and st as one entry, lsst:
 
-                int lsstFileSize = 0;
+                /*int lsstFileSize = 0;
                 if (i < FileNames.Count - 1)
                     lsstFileSize = pairOffsets[i + 1] - pairOffsets[i];
                 else
                     lsstFileSize = (int)(reader.BaseStream.Length - pairOffsets[i]);
                 LsStFiles.Add(reader.ReadBytes(lsstFileSize));
-                Console.WriteLine($"LsSt File {i} is size of {lsstFileSize}");
+                Console.WriteLine($"LsSt File {i} is size of {lsstFileSize}");*/
 
                 //attempt to read ls and st separately as subentries:
 
-                /*long entryStart = reader.BaseStream.Position;
+                Console.WriteLine($"Pair #{i}: {Files[i].FileName} is at {pairOffsets[i]}");
                 int subEntryCount = reader.ReadInt32();
-                List<string> subentryExtensions = new List<string>();
-                List<int> subEntryOffsets = new List<int>();
+                Console.WriteLine($"Pair #{i}: {Files[i].FileName} has {subEntryCount} subentries");
+                uint offsetToReturnTo = (uint)reader.BaseStream.Position;
                 for (int j = 0; j < subEntryCount; j++)
                 {
-                    subentryExtensions.Add(reader.ReadCString());
+                    reader.BaseStream.Position = offsetToReturnTo;
+                    string subentryExtension = reader.ReadCString();
                     reader.AlignStream(4);
-                    subEntryOffsets.Add(reader.ReadInt32());
+                    int subEntryOffset = reader.ReadInt32();
+                    offsetToReturnTo = (uint)reader.BaseStream.Position;
+                    reader.BaseStream.Position = pairOffsets[i] + subEntryOffset;
+                    Console.WriteLine($"Pair #{i}: {Files[i].FileName} data is at {subEntryOffset}");
+                    switch (subentryExtension)
+                    {
+                        case "ls":
+                            LsTrack lsSab = new LsTrack();
+                            lsSab.ReadBinary(reader, version, true);
+                            Files[i].Ls=lsSab;
+                            Console.WriteLine($"Pair #{i}: {Files[i].FileName} ls has {lsSab.keys.Count} keys");
+                            break;
+                        case "st":
+                            reader.BaseStream.Position += 0x12;
+                            string subtitleId = reader.ReadCString();
+                            Files[i].St=subtitleId;
+                            Console.WriteLine($"Pair #{i}: {Files[i].FileName} st is {subtitleId}");
+                            break;
+                        default:
+                            Console.WriteLine($"Extension {subentryExtension} unsupported!!");
+                            return;
+                    }
+                    //inverted endianness in gz
+                    ulong fileNameHashFooter = reader.ReadUInt64();
                 }
-
-                long startOfSubEntries = reader.BaseStream.Position;
-
-                if (!subentryExtensions.Contains("ls"))
-                    LsFiles.Add(Array.Empty<byte>());
-                else if (!subentryExtensions.Contains("st"))
-                    StFiles.Add(Array.Empty<byte>());
-
-                for (int j = 0; j < subEntryCount; j++)
-                {
-                    long pos = entryStart + subEntryOffsets[j];
-                    reader.BaseStream.Position = pos;
-                    int subEntrySize = 0;
-                    if (j < subEntryCount - 1)
-                        subEntrySize = (int)((entryStart + subEntryOffsets[j + 1]) - pos);
-                    else
-                        if (i < pairsCount - 1)
-                            subEntrySize = (int)((pairOffsets[i + 1] - pos));
-                        else
-                            subEntrySize = (int)(reader.BaseStream.Length - (pos));
-
-                    if (subentryExtensions[j] == "ls")
-                        LsFiles.Add(reader.ReadBytes(subEntrySize));
-                    else if (subentryExtensions[j] == "st")
-                        StFiles.Add(reader.ReadBytes(subEntrySize));
-                }*/
             }
         }
-        public void ExportFiles(string outputPath, Dictionary<ulong, string> dictionary)
+        public void ExportFiles(string outputPath, Dictionary<ulong, string> dictionary, Version version)
         {
-            foreach (ulong fileName in FileNames)
+            foreach (StreamedAnimationData file in Files)
             {
-                int index = FileNames.IndexOf(fileName);
+                string strFileName = file.FileName.ToString();
 
-                string strFileName = fileName.ToString();
-
-                if (dictionary.ContainsKey(fileName))
-                    dictionary.TryGetValue(fileName, out strFileName);
+                if (dictionary.ContainsKey(file.FileName))
+                    dictionary.TryGetValue(file.FileName, out strFileName);
 
                 //attempt to read ls and st as one entry, lsst:
-                if (LsStFiles.Count > 0)
+                /*if (LsStFiles.Count > 0)
                     if (LsStFiles[index].Length > 0)
-                        File.WriteAllBytes(outputPath + "\\" + strFileName + ".lsst", LsStFiles[index]);
+                        File.WriteAllBytes(outputPath + "\\" + strFileName + ".lsst", LsStFiles[index]);*/
 
                 //attempt to read ls and st separately as subentries:
-                /* if (LsFiles.Count > 0)
-                     if (LsFiles[index].Length > 0)
-                         File.WriteAllBytes(outputPath + "\\" + fileName.ToString() + ".ls", LsFiles[index]);
+                if (file.Ls != null)
+                    using (BinaryWriter writer = new BinaryWriter(new FileStream(outputPath + "\\" + strFileName + ".ls", FileMode.Create)))
+                    {
+                        file.Ls.WriteBinary(writer, version, strFileName, false);
+                    };
 
-                 if (StFiles.Count > 0)
-                     if (StFiles[index].Length > 0)
-                         File.WriteAllBytes(outputPath + "\\" + fileName.ToString() + ".st", StFiles[index]);*/
+                if (file.St != null)
+                    using (BinaryWriter writer = new BinaryWriter(new FileStream(outputPath + "\\" + strFileName + ".st", FileMode.Create)))
+                    {
+                        WriteSt(writer, file.St);
+                    };
             }
         }
-        public void ImportFiles(string[] files)
+        public void ImportFiles(string[] files, Version version)
         {
             for (int i = 0; i < files.Length; i++)
             {
                 //attempt to read ls and st as one entry, lsst:
-                if (Path.GetExtension(files[i]) == ".lsst")
+                /*if (Path.GetExtension(files[i]) == ".lsst")
                 {
                     string fileName = Path.GetFileNameWithoutExtension(files[i]);
                     ulong fileNameHash;
 
-                    if (UInt64.TryParse(fileName, out fileNameHash))
+                    if (ulong.TryParse(fileName, out fileNameHash))
                         fileNameHash = Convert.ToUInt64(fileName);
                     else
                         fileNameHash = Extensions.StrCode64(fileName);
@@ -148,46 +146,59 @@ namespace StpTool
                     FileNames.Add(fileNameHash);
                     if (Path.GetExtension(files[i]) == ".lsst")
                         LsStFiles.Add(File.ReadAllBytes(files[i]));
-                }
+                }*/
 
                 //attempt to read ls and st separately as subentries:
-                /*//TODO .st
-                if (Path.GetExtension(files[i]) == ".ls")
+                if (Path.GetExtension(files[i]) == ".ls" || Path.GetExtension(files[i]) == ".st")
                 {
-                    FileNames.Add(Convert.ToUInt64(Path.GetFileNameWithoutExtension(files[i])));
-                    if (Path.GetExtension(files[i]) == ".ls")
-                        LsFiles.Add(File.ReadAllBytes(files[i]));
-                }*/
+                    string fileName = Path.GetFileNameWithoutExtension(files[i]);
+
+                    if (ulong.TryParse(fileName, out ulong fileNameHash))
+                        fileNameHash = Convert.ToUInt64(fileName);
+                    else
+                        fileNameHash = Extensions.StrCode64(fileName);
+
+                    if (Files.Find(j => j.FileName == fileNameHash)==null)
+                        Files.Add(new StreamedAnimationData() { FileName=fileNameHash });
+
+                    using (BinaryReader reader = new BinaryReader(new FileStream(files[i], FileMode.Open)))
+                    {
+                        switch (Path.GetExtension(files[i]))
+                        {
+                            case ".ls":
+                                LsTrack ls = new LsTrack();
+                                ls.ReadBinary(reader, version, false);
+                                Files.Find(j => j.FileName == fileNameHash).Ls = ls;
+                                break;
+                            case ".st":
+                                reader.BaseStream.Position += 0x12;
+                                string st = reader.ReadCString();
+                                Files.Find(j => j.FileName == fileNameHash).St = st;
+                                break;
+                            default:
+                                break;
+                        }
+                    }
+                }
             }
         }
         public void WritePackage(BinaryWriter writer, Version version)
         {
-            switch (version)
-            {
-                case Version.GZ:
-                    break;
-                case Version.TPP:
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException();
-            }
-
             writer.Write((uint)SabEndiannessSignature.Little);
-            writer.Write((uint)FileNames.Count);
+            writer.Write((uint)Files.Count);
 
             List<int> paramsStartPositionOffsets = new List<int>();
-            List<int> paramsStartPositions = new List<int>();
 
-            foreach (ulong fileName in FileNames)
+            foreach (StreamedAnimationData file in Files)
             {
-                writer.Write(fileName);
+                writer.Write(file.FileName);
                 paramsStartPositionOffsets.Add((int)writer.BaseStream.Position);
                 writer.WriteZeroes(4);//offset
                 writer.WriteZeroes(4);//padding
             }
 
             //attempt to read ls and st as one entry, lsst:
-            foreach (byte[] lsstFile in LsStFiles)
+            /*foreach (byte[] lsstFile in LsStFiles)
             {
                 int index = LsStFiles.IndexOf(lsstFile);
                 int lsstLength = lsstFile.Length;
@@ -195,14 +206,93 @@ namespace StpTool
                 paramsStartPositions.Add((int)writer.BaseStream.Position);
                 writer.Write(lsstFile);
                 writer.AlignStream(16); //there's a potential in corruption here! size differences from padding!
-            }
+            }*/
 
-            foreach (int offset in paramsStartPositions)
+            foreach (StreamedAnimationData file in Files)
             {
-                int index = paramsStartPositions.IndexOf(offset);
+                uint startOfEntry = (uint)writer.BaseStream.Position;
+                int index = Files.IndexOf(file);
                 writer.BaseStream.Position = paramsStartPositionOffsets[index];
-                writer.Write(offset);
+                writer.Write(startOfEntry);
+                writer.BaseStream.Position = startOfEntry;
+
+                int fileCount = 0;
+                if (file.Ls != null)
+                    fileCount += 1;
+                if (file.St != null)
+                    fileCount += 1;
+
+                writer.Write(fileCount);
+
+                uint offsetToLs = 0;
+                uint offsetToSt = 0;
+                uint offsetToLsOffset = 0;
+                uint offsetToStOffset = 0;
+
+                if (file.Ls != null)
+                {
+                    writer.WriteCString("ls");
+                    writer.AlignStream(4);
+                    offsetToLsOffset = (uint)writer.BaseStream.Position;
+                    writer.WriteZeroes(4);
+                }
+                if (file.St != null)
+                {
+                    writer.WriteCString("st");
+                    writer.AlignStream(4);
+                    offsetToStOffset = (uint)writer.BaseStream.Position;
+                    writer.WriteZeroes(4);
+                }
+
+                if (file.Ls != null)
+                {
+                    Console.WriteLine($"Ls File {index} is {file.FileName}");
+                    if (offsetToLsOffset>0)
+                        offsetToLs = (uint)(writer.BaseStream.Position - startOfEntry);
+                    file.Ls.WriteBinary(writer, version, file.FileName.ToString(), false);
+                    if (version == Version.TPP)
+                    {
+                        if (writer.BaseStream.Position % 8 != 0)
+                            writer.WriteZeroes(4);
+                    }
+                    writer.Write(file.FileName);
+                    writer.AlignStream(16);
+                }
+                if (file.St != null)
+                {
+                    Console.WriteLine($"St File {index} is {file.FileName}");
+                    if (offsetToStOffset > 0)
+                        offsetToSt = (uint)(writer.BaseStream.Position - startOfEntry);
+                    WriteSt(writer, file.St);
+                    if (version == Version.TPP)
+                    {
+                        if (writer.BaseStream.Position % 8 != 0)
+                            writer.WriteZeroes(4);
+                    }
+                    writer.Write(file.FileName);
+                    writer.AlignStream(16);
+                }
+                if (offsetToLs > 0)
+                {
+                    writer.BaseStream.Position = offsetToLsOffset;
+                    writer.Write(offsetToLs);
+                }
+                if (offsetToSt > 0)
+                {
+                    writer.BaseStream.Position = offsetToStOffset;
+                    writer.Write(offsetToSt);
+                }
             }
+        }
+        public void WriteSt(BinaryWriter writer, string st)
+        {
+            writer.Write(1);
+            writer.Write((short)6);
+            writer.Write(100);
+            writer.WriteZeroes(2);
+            writer.Write((short)8);
+            writer.Write(1);
+            writer.WriteCString(st);
         }
     }
 }
