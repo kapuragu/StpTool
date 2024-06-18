@@ -4,11 +4,14 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Xml;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement.TaskbarClock;
 
 namespace StpTool
 {
     public class LsTrack
     {
+        public string Name;
         public List<LsTrackKey> keys = new List<LsTrackKey>();
         public void ReadBinary(BinaryReader reader, Version version, bool isSab)
         {
@@ -102,6 +105,51 @@ namespace StpTool
                 keys[i].WriteBinary(writer, version);
             };
             writer.AlignStream(16);
+        }
+        public void WriteXml(XmlWriter writer)
+        {
+            keys = keys.OrderBy(key => key.Time).ToList();
+
+            writer.WriteStartElement("ls");
+            writer.WriteAttributeString("name", Name.ToString());
+            foreach (LsTrackKey key in keys)
+                key.WriteXml(writer);
+            writer.WriteEndElement();
+        }
+        public void ReadXml(XmlReader reader)
+        {
+            reader.Read();//apparently these empties are the reason why IsEmptyElement falsely fires true on empty routesets
+            reader.Read();
+            var loop = true;
+            if (reader.IsEmptyElement)
+            {
+                //Console.WriteLine("ROUTESET EMPTY");
+                loop = false;
+            }
+            //Console.WriteLine("ROUTESET START");
+            reader.ReadStartElement("ls");
+            while (loop)
+            {
+                switch (reader.NodeType)
+                {
+                    case XmlNodeType.Element:
+                        //Console.WriteLine("LS START");
+                        LsTrackKey key = new LsTrackKey();
+                        key.ReadXml(reader);
+                        keys.Add(key);
+                        continue;
+                    case XmlNodeType.EndElement:
+                        if (reader.Name == "ls")
+                        {
+                            //Console.WriteLine("LS END");
+                            reader.ReadEndElement();
+                            loop = false;
+                            return;
+                        }
+                        continue;
+
+                }
+            }
         }
     }
 }

@@ -1,8 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Text;
+using System.Xml;
 
 namespace StpTool
 {
@@ -68,36 +71,92 @@ namespace StpTool
                     Console.WriteLine($"Read {arg}");
                     string extension = Path.GetExtension(arg).Substring(1);
 
-                    if (extension == "stp"|| extension == "sab"|| extension == "bnk")
+                    string fileNameWithoutExtension = Path.GetFileNameWithoutExtension(arg);
+                    string directoryName = Path.GetDirectoryName(arg);
+                    if (directoryName == string.Empty)
+                        directoryName = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+                    string outputDirectory = directoryName + "\\" + fileNameWithoutExtension + "_" + extension;
+
+                    string direct = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+                    string dictDir = direct + "\\" + EmbeddedFilenameStringsFileName;
+
+                    switch (extension)
                     {
-                        string fileNameWithoutExtension = Path.GetFileNameWithoutExtension(arg);
-                        string directoryName = Path.GetDirectoryName(arg);
-                        if (directoryName == string.Empty)
-                            directoryName = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-                        string outputDirectory = directoryName + "\\" + fileNameWithoutExtension + "_" + extension;
+                        case "stp":
+                        case "sab":
+                        case "bnk":
+                            Directory.CreateDirectory(outputDirectory);
+                            break;
+                    };
 
-                        Directory.CreateDirectory(outputDirectory);
-
-                        if (extension == "stp")
-                        {
+                    switch (extension)
+                    {
+                        case "stp":
                             StreamedPackage stp = ReadStpPackage(arg);
                             ExportStpFiles(stp, outputDirectory);
-                        }
-                        else if (extension == "sab")
-                        {
-                            string direct = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-                            string dictDir = direct + "\\" + EmbeddedFilenameStringsFileName;
+                            break;
+                        case "sab":
                             StreamedAnimation sab = ReadSabPackage(arg, version);
                             ExportSabFiles(sab, outputDirectory, CreateDictionary(dictDir), outversion);
-                        }
-                        else if (extension == "bnk")
-                        {
+                            break;
+                        case "bnk":
                             EmbeddedDataIndex bnk = ReadSoundBank(arg);
                             DumpBnk(bnk, outputDirectory);
-                        }
-                    }
+                            break;
+                        case "ls":
+                        case "ls2":
+                            LsTrack ls = ReadBinary(arg,version);
+                            WriteXml(ls, Path.GetFileNameWithoutExtension(arg) + "." + extension + ".xml");
+                            break;
+                        case "xml":
+                            LsTrack xmlLs = ReadXml(arg);
+                            WriteLsBinary(xmlLs, directoryName + "\\" + fileNameWithoutExtension, outversion, fileNameWithoutExtension, false);
+                            break;
+                    };
                 }
             }
+        }
+        public static void WriteLsBinary(LsTrack xmlLs, string outputPath, Version version, string fileName, bool isSab)
+        {
+            using (BinaryWriter writer = new BinaryWriter(new FileStream(outputPath, FileMode.Create)))
+            {
+                xmlLs.WriteBinary(writer, version, fileName, isSab);
+            }
+        }
+        public static LsTrack ReadXml(string path)
+        {
+            XmlReaderSettings xmlReaderSettings = new XmlReaderSettings
+            {
+                IgnoreWhitespace = true
+            };
+
+            LsTrack ls = new LsTrack();
+            using (var reader = XmlReader.Create(path, xmlReaderSettings))
+            {
+                ls.ReadXml(reader);
+            }
+            return ls;
+        }
+        public static void WriteXml(LsTrack ls, string path)
+        {
+            XmlWriterSettings xmlWriterSettings = new XmlWriterSettings()
+            {
+                Encoding = Encoding.UTF8,
+                Indent = true
+            };
+            using (var writer = XmlWriter.Create(path, xmlWriterSettings))
+            {
+                ls.WriteXml(writer);
+            }
+        }
+        public static LsTrack ReadBinary(string path, Version version)
+        {
+            LsTrack ls = new LsTrack();
+            using (BinaryReader reader = new BinaryReader(new FileStream(path, FileMode.Open)))
+            {
+                ls.ReadBinary(reader, version, false);
+            }
+            return ls;
         }
         public static StreamedAnimation ReadSabPackage(string path, Version version)
         {

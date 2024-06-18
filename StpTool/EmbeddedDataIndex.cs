@@ -48,6 +48,8 @@ namespace StpTool
             }
             reader.AlignStream(16);
             long startOfArray = reader.BaseStream.Position;
+            uint dataSignature = reader.ReadUInt32();
+            uint sizeOfData = reader.ReadUInt32();
             for (int i = 0; i < fileCount; i++)
             {
                 reader.BaseStream.Position = startOfArray + wemStartOffsets[i];

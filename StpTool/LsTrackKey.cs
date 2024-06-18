@@ -4,6 +4,9 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows.Forms;
+using System.Xml;
+using System.Xml.Linq;
 
 namespace StpTool
 {
@@ -51,17 +54,17 @@ namespace StpTool
     public class LsTrackKey
     {
         public ushort Time = new ushort();
-        public ushort Intensity = new ushort();
+        public ushort Duration = new ushort();
         List<LipAnim> LipAnims = new List<LipAnim>();
-        List<float> Strengths = new List<float>();
+        List<float> Multipliers = new List<float>();
         public void ReadBinary(BinaryReader reader, Version version)
         {
             Time = reader.ReadUInt16();
-            Intensity = reader.ReadUInt16();
+            Duration = reader.ReadUInt16();
             byte lipAnimCount = reader.ReadByte();
             byte strengthCount = reader.ReadByte();
             reader.BaseStream.Position += 2;
-            Console.WriteLine($"		Time: {Time}, Intensity: {Intensity}");
+            Console.WriteLine($"		Time: {Time}, Intensity: {Duration}");
             for (int i = 0; i < lipAnimCount; i++)
             {
                 LipAnims.Add((LipAnim)reader.ReadUInt32());
@@ -69,26 +72,90 @@ namespace StpTool
             };
             for (int i = 0; i < strengthCount; i++)
             {
-                Strengths.Add(reader.ReadSingle());
-                Console.WriteLine($"			Strength #{i}: {Strengths[i]}");
+                Multipliers.Add(reader.ReadSingle());
+                Console.WriteLine($"			Strength #{i}: {Multipliers[i]}");
             };
         }
         public void WriteBinary(BinaryWriter writer, Version version)
         {
-            if (version == Version.TPP && Strengths.Count == 0)
-                Strengths.Add(1);
+            if (version == Version.TPP && Multipliers.Count == 0)
+                Multipliers.Add(1);
             else if (version == Version.GZ)
-                Strengths = new List<float>();
+                Multipliers = new List<float>();
 
             writer.Write(Time);
-            writer.Write(Intensity);
+            writer.Write(Duration);
             writer.Write((byte)LipAnims.Count);
-            writer.Write((byte)Strengths.Count);
+            writer.Write((byte)Multipliers.Count);
             writer.Write((short)0);
             foreach (LipAnim lipAnim in LipAnims)
                 writer.Write((int)lipAnim);
-            foreach (float strength in Strengths)
+            foreach (float strength in Multipliers)
                 writer.Write(strength);
+        }
+        public void WriteXml(XmlWriter writer)
+        {
+            writer.WriteStartElement("key");
+            writer.WriteAttributeString("time", Time.ToString());
+            writer.WriteAttributeString("duration", Duration.ToString());
+            foreach (LipAnim lipAnim in LipAnims)
+            {
+                writer.WriteStartElement("pose");
+                writer.WriteAttributeString("pose", lipAnim.ToString());
+                writer.WriteEndElement();
+            }
+            foreach (float multiplier in Multipliers)
+            {
+                writer.WriteStartElement("multiplier");
+                writer.WriteAttributeString("multiplier", multiplier.ToString());
+                writer.WriteEndElement();
+            }
+            writer.WriteEndElement();
+        }
+        public void ReadXml(XmlReader reader)
+        {
+            ushort.TryParse(reader.GetAttribute("time"), out Time);
+            //Console.WriteLine($"time={Time}");
+            ushort.TryParse(reader.GetAttribute("duration"), out Duration);
+            //Console.WriteLine($"duration={Duration}");
+            reader.ReadStartElement("key");
+            var loop = true;
+            while (2 > 1)
+            {
+                switch (reader.NodeType)
+                {
+                    case XmlNodeType.Element:
+                        switch (reader.Name)
+                        {
+                            case "pose":
+                                if (Enum.TryParse(reader.GetAttribute("pose"), out LipAnim pose))
+                                {
+                                    LipAnims.Add(pose);
+                                    //Console.WriteLine($"pose={pose}");
+                                }
+                                reader.ReadStartElement("pose");
+                                break;
+                            case "multiplier":
+                                if (float.TryParse(reader.GetAttribute("multiplier"), out float multiplier))
+                                {
+                                    Multipliers.Add(multiplier);
+                                    //Console.WriteLine($"multiplier={multiplier}");
+                                }
+                                reader.ReadStartElement("multiplier");
+                                break;
+                        }
+                        continue;
+                    case XmlNodeType.EndElement:
+                        if (reader.Name=="key")
+                        {
+                            //Console.WriteLine("KEY END");
+                            loop = false;
+                            reader.ReadEndElement();
+                            return;
+                        }
+                        continue;
+                }
+            }
         }
     }
 }
