@@ -115,6 +115,8 @@ namespace StpTool
                     WemFiles.Add(File.ReadAllBytes(files[i]));
 
                     string ls2Path = Path.ChangeExtension(files[i], ".ls2");
+                    if (!File.Exists(ls2Path))
+                        ls2Path = Path.ChangeExtension(files[i], ".ls");
                     byte[] ls2 = Array.Empty<byte>();
                     if (File.Exists(ls2Path))
                         ls2 = File.ReadAllBytes(ls2Path);
