@@ -17,7 +17,7 @@ namespace StpTool
         /*public List<byte[]> LsStFiles = new List<byte[]>();*/
 
         //attempt to read ls and st separately as subentries:
-        public void ReadPackage(BinaryReader reader, Version version)
+        public void ReadPackage(BinaryReader reader, Version version, Dictionary<ulong, string> dictionary)
         {
             uint signature = reader.ReadUInt32();
             Console.WriteLine($"signature: {signature}");
@@ -81,7 +81,7 @@ namespace StpTool
                     {
                         case "ls":
                             LsTrack lsSab = new LsTrack();
-                            lsSab.ReadBinary(reader, version, true);
+                            lsSab.ReadBinary(reader, version, true, dictionary);
                             Files[i].Ls=lsSab;
                             Console.WriteLine($"Pair #{i}: {Files[i].FileName} ls has {lsSab.keys.Count} keys");
                             break;

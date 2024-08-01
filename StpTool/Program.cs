@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -79,6 +78,7 @@ namespace StpTool
 
                     string direct = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
                     string dictDir = direct + "\\" + EmbeddedFilenameStringsFileName;
+                    Dictionary<ulong,string> dictionary = CreateDictionary(dictDir);
 
                     switch (extension)
                     {
@@ -96,8 +96,8 @@ namespace StpTool
                             ExportStpFiles(stp, outputDirectory);
                             break;
                         case "sab":
-                            StreamedAnimation sab = ReadSabPackage(arg, version);
-                            ExportSabFiles(sab, outputDirectory, CreateDictionary(dictDir), outversion);
+                            StreamedAnimation sab = ReadSabPackage(arg, version, dictionary);
+                            ExportSabFiles(sab, outputDirectory, dictionary, outversion);
                             break;
                         case "bnk":
                             EmbeddedDataIndex bnk = ReadSoundBank(arg);
@@ -105,7 +105,7 @@ namespace StpTool
                             break;
                         case "ls":
                         case "ls2":
-                            LsTrack ls = ReadBinary(arg,version);
+                            LsTrack ls = ReadBinary(arg,version, dictionary);
                             WriteXml(ls, Path.GetFileNameWithoutExtension(arg) + "." + extension + ".xml");
                             break;
                         case "xml":
@@ -149,21 +149,21 @@ namespace StpTool
                 ls.WriteXml(writer);
             }
         }
-        public static LsTrack ReadBinary(string path, Version version)
+        public static LsTrack ReadBinary(string path, Version version, Dictionary<ulong, string> dictionary)
         {
             LsTrack ls = new LsTrack();
             using (BinaryReader reader = new BinaryReader(new FileStream(path, FileMode.Open)))
             {
-                ls.ReadBinary(reader, version, false);
+                ls.ReadBinary(reader, version, false, dictionary);
             }
             return ls;
         }
-        public static StreamedAnimation ReadSabPackage(string path, Version version)
+        public static StreamedAnimation ReadSabPackage(string path, Version version, Dictionary<ulong, string> dictionary)
         {
             StreamedAnimation sab = new StreamedAnimation();
             using (BinaryReader reader = new BinaryReader(new FileStream(path, FileMode.Open)))
             {
-                sab.ReadPackage(reader, version);
+                sab.ReadPackage(reader, version, dictionary);
             }
             return sab;
         }

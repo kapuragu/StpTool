@@ -2,10 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Xml;
-using static System.Windows.Forms.VisualStyles.VisualStyleElement.TaskbarClock;
 
 namespace StpTool
 {
@@ -13,13 +10,15 @@ namespace StpTool
     {
         public string Name;
         public List<LsTrackKey> keys = new List<LsTrackKey>();
-        public void ReadBinary(BinaryReader reader, Version version, bool isSab)
+        public void ReadBinary(BinaryReader reader, Version version, bool isSab, Dictionary<ulong, string> dictionary)
         {
             if (!isSab)
             {
                 if (version == Version.TPP)
                 {
                     ulong messageIdHash = reader.ReadUInt64();
+
+                    Name = dictionary.ContainsKey(messageIdHash) ? dictionary[messageIdHash] : messageIdHash.ToString();
 
                     Console.WriteLine($"{messageIdHash}");
                 }
@@ -150,6 +149,11 @@ namespace StpTool
 
                 }
             }
+        }
+
+        internal void ReadBinary(BinaryReader reader, Version version, bool v)
+        {
+            throw new NotImplementedException();
         }
     }
 }
